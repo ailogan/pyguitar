@@ -18,6 +18,8 @@ import scipy
 import scipy.fftpack
 import scipy.io.wavfile
 
+import unittest
+
 data = None #Shared between threads
 currentCol = 0 #Because python doesn't really do static variables
 scooter = [] #Ditto
@@ -35,11 +37,11 @@ def freq_to_key(freq_in_hertz):
     #
     # Key 1 is A0, key 88 is C8
 
-    keynum = int(numpy.around(12 * numpy.log2(freq_in_hertz / 440) + 49)) #Because A4 (440Hz) is the reference and the 49th key.  Round to the nearest whole number to allow for a bit of slop.
+    keynum = int(numpy.around(12 * numpy.log2(float(freq_in_hertz) / 440) + 49)) #Because A4 (440Hz) is the reference and the 49th key.  Round to the nearest whole number to allow for a bit of slop.
 
 
-    #There are three notes in the lowest octave, so add 9 to make it an even 12 and then divide by 12 to get the octave.
-    octave = ((keynum + 9) / 12)
+    #There are three notes in the lowest octave, so add 8 to make it an even 11 and then divide by 12 to get the octave.
+    octave = ((keynum + 8) / 12)
     
     notes = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#']
 
@@ -198,6 +200,60 @@ def main(argv=None):
         pygame.display.flip() #RENDER WINDOW
         clk.tick(30) #limit to 30FPS
 
+class fft_test(unittest.TestCase):
+    def test_frequencies(self):
+        
+        #Test two full octaves
+        self.assertEqual(freq_to_key(65.41), "C2")
+        self.assertEqual(freq_to_key(69.30), "C#2")
+        self.assertEqual(freq_to_key(73.42), "D2")
+        self.assertEqual(freq_to_key(77.78), "D#2")
+        self.assertEqual(freq_to_key(82.41), "E2")
+        self.assertEqual(freq_to_key(87.31), "F2")
+        self.assertEqual(freq_to_key(92.50), "F#2")
+        self.assertEqual(freq_to_key(98.00), "G2")
+        self.assertEqual(freq_to_key(103.8), "G#2")
+        self.assertEqual(freq_to_key(110.0), "A2")
+        self.assertEqual(freq_to_key(116.5), "A#2")
+        self.assertEqual(freq_to_key(123.5), "B2")
+
+        self.assertEqual(freq_to_key(130.8), "C3")
+        self.assertEqual(freq_to_key(138.6), "C#3")
+        self.assertEqual(freq_to_key(146.8), "D3")
+        self.assertEqual(freq_to_key(155.6), "D#3")
+        self.assertEqual(freq_to_key(164.8), "E3")
+        self.assertEqual(freq_to_key(174.6), "F3")
+        self.assertEqual(freq_to_key(185.0), "F#3")
+        self.assertEqual(freq_to_key(196.0), "G3")
+        self.assertEqual(freq_to_key(207.7), "G#3")
+        self.assertEqual(freq_to_key(220.0), "A3")
+        self.assertEqual(freq_to_key(233.1), "A#3")
+        self.assertEqual(freq_to_key(246.9), "B3")
+
+        #Standard guitar tuning
+        self.assertEqual(freq_to_key(82.41), "E2")
+        self.assertEqual(freq_to_key(110)  , "A2")
+        self.assertEqual(freq_to_key(146.8), "D3")
+        self.assertEqual(freq_to_key(196)  , "G3")
+        self.assertEqual(freq_to_key(246.9), "B3")
+        self.assertEqual(freq_to_key(329.6), "E4")
+
+        #piano
+        self.assertEqual(freq_to_key(27.5) , "A0")
+        self.assertEqual(freq_to_key(4186) , "C8")
+
+        #All of the octaves
+        self.assertEqual(freq_to_key(16.35), "C0")
+        self.assertEqual(freq_to_key(32.70), "C1")
+        self.assertEqual(freq_to_key(65.41), "C2")
+        self.assertEqual(freq_to_key(130.8), "C3")
+        self.assertEqual(freq_to_key(261.6), "C4")
+        self.assertEqual(freq_to_key(523.3), "C5")
+        self.assertEqual(freq_to_key(1047) , "C6")
+        self.assertEqual(freq_to_key(2093) , "C7")
+        self.assertEqual(freq_to_key(4186) , "C8")
+
 #Give main() a single exit point (see: http://www.artima.com/weblogs/viewpost.jsp?thread=4829)
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
+    #unittest.main()
