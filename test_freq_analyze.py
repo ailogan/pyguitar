@@ -8,12 +8,52 @@ import unittest
 import freq_analyze
 
 import pyaudio
-import wave
+
+import scipy
+from scipy import pi
+
+import numpy as np
+
 import sys
+
+#quickie "don't do anything" data_provider.
+class null_provider(freq_analyze.data_provider):
+    chunksize = 1024
+    sample_rate_in_hz = 1
+    
+    def __init__(self):
+        pass
+
+    def get_data(self):
+        return map(lambda x: 0, range(0, self.chunksize))
+
+#a generic sine wave oscillator
+class oscillator(freq_analyze.data_provider):
+    hertz = None
+    chunksize = None
+    sample_rate_in_hz = None
+    current_pos = None
+
+    def __init__(self, hertz):
+        self.hertz = hertz
+        self.chunksize = 1024
+        self.current_pos = 0
+        self.sample_rate_in_hz = int(np.ceil(hertz * 2 + (.001 * hertz))) #You know what?  Let's try out the Nyquist-Shannon sampling theorem.  (In order to be uniquly identifiable the frequency has to be less than .5 the sampling frequency)
+
+    def get_data(self):
+        chunk = []
+        
+        #Divide the chunk into hundreths of a radian.  The good news is that sine waves are at least periodic.
+        for x in range(0, self.chunksize):
+            chunk.append(10 * scipy.sin(2 * pi * self.hertz * (float(self.current_pos) / self.sample_rate_in_hz)))
+            self.current_pos = self.current_pos + 1
+            self.current_pos = self.current_pos % self.sample_rate_in_hz
+            
+        return chunk
 
 class fft_test(unittest.TestCase):
     def test_freq_to_key(self):
-        fa = freq_analyze.freq_analyze(0,0)
+        fa = freq_analyze.freq_analyze(null_provider)
         
         #Test two full octaves
         self.assertEqual(fa.freq_to_key(65.41), "C2")
@@ -68,48 +108,21 @@ class fft_test(unittest.TestCase):
     def test_get_freqencies(self):
         print
 
-        p = pyaudio.PyAudio()
+        for x in range(1, 30000, 50):
+            test_osc = oscillator(x)
 
-        wf = wave.open("Sine_wave_440.wav", 'rb')
-    
-        rate = wf.getframerate()
-   
-        stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                        channels=wf.getnchannels(),
-                        rate=rate,
-                        output=True)
+            fa = freq_analyze.freq_analyze(test_osc)
 
-        chunksize = 1024
-        num_frames = 8
-        fft_buffer_size = num_frames*chunksize
-        
-        fa = freq_analyze.freq_analyze(fft_buffer_size, rate)
+            analysis_results = fa.iterate(1)
 
-        #Add enough chunks that we throw away some data.
-        for x in range(0, num_frames + 2):
-            data = wf.readframes(chunksize)
+            freq_in_hertz = analysis_results[0][0]
+            freq_as_note  = analysis_results[0][2]
 
-            fa.add_data(data)
-
-            if(((x+1) * chunksize) < fft_buffer_size):
-                self.assertEqual(len(fa.fft_input_buffer), (x+1) * chunksize)
-
-            else:
-                self.assertEqual(len(fa.fft_input_buffer), fft_buffer_size)
-
-
-        analysis_results = fa.get_frequencies(1)
-
-        freq_in_hertz = analysis_results[0][0]
-
-        #Make sure that the frequency we grabbed is fairly close to what it should be
-        print "freq_in_hertz: " + str(freq_in_hertz)
-        self.assertTrue(freq_in_hertz > 439)
-        self.assertTrue(freq_in_hertz < 441)
-
-        #Should also be the right note
-        self.assertEqual(analysis_results[0][2], "A4")
-        
+            #Make sure that the frequency we grabbed is within 1% of what it should be
+            print "freq_in_hertz: " + str(freq_in_hertz)
+            self.assertTrue(freq_in_hertz > (x - (.01 * x)))
+            self.assertTrue(freq_in_hertz < (x + (.01 * x)))
+            
 
 #Give main() a single exit point (see: http://www.artima.com/weblogs/viewpost.jsp?thread=4829)
 if __name__ == "__main__":

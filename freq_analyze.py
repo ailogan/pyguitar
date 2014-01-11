@@ -8,27 +8,43 @@ import numpy as np
 import scipy
 import scipy.fftpack
 
+class data_provider:
+    """a class that provides audio input to the frequency analyzer.  Essentially entirely virtual."""
+    chunksize = None
+    sample_rate_in_hz = None
+
+    def __init__(self):
+        raise NotImplementedError()
+
+    def get_data(self):
+        """return a chunksize length array of 16-bit ints suitable for feeding into the FFT function."""
+        raise NotImplementedError()
+
 class freq_analyze:
-    """a class that takes in audio input, runs it through a Fourier transform and produces an array of tuples of frequency, intensity and music note."""
+    """a class that takes in input from a data_provider class, runs it through a Fourier transform and produces an array of tuples of frequency, intensity and music note."""
+
+    data_provider = None
 
     fft_input_buffer = None
     fft_input_buffer_size = None  #The idea is that we get a much more accurate FFT result if we have a bigger input window.
     sample_rate = None
 
-    def __init__(self, fft_input_buffer_size, sample_rate):
-        #Initialize variables
+    def __init__(self, data_provider):
+        self.data_provider = data_provider
 
         self.fft_input_buffer = []
-        self.fft_input_buffer_size = fft_input_buffer_size
-        self.sample_rate = sample_rate
+        self.fft_input_buffer_size = 8 * self.data_provider.chunksize  #Not super-thrilled about this layout.
+        self.sample_rate = self.data_provider.sample_rate_in_hz
 
-    def add_data(self, pcm_string):
-        pcm_data = np.fromstring(pcm_string, dtype=np.int16)
-
+    def __add_data(self, pcm_data):
         self.fft_input_buffer.extend(pcm_data)
 
         #Make sure the buffer doesn't get too big
         self.fft_input_buffer = self.fft_input_buffer[-self.fft_input_buffer_size:]
+
+    #Throw away the accumulated buffer
+    def clear(self):
+        self.fft_input_buffer = []
         
     #This isn't perfect on real instruments.  See https://en.wikipedia.org/wiki/Railsback_curve#The_Railsback_curve for more about that.
     def freq_to_key(self, freq_in_hertz):
@@ -50,7 +66,7 @@ class freq_analyze:
         
         return note_name
     
-    def get_frequencies(self, num_frequencies):
+    def iterate(self, num_frequencies):
         #Take our data and convert it into a collection of frequencies.  The return value is:
         # Discrete Fourier transform of a real sequence.
         #
@@ -66,6 +82,15 @@ class freq_analyze:
         #
         # Note that y(-j) == y(n-j).conjugate().
 
+        #Fill the buffer, but get at least one additional chunk
+        for x in range(1, (self.fft_input_buffer_size / self.data_provider.chunksize) + 1):
+            #Get more data
+            self.fft_input_buffer.extend(self.data_provider.get_data())
+
+            #Make sure the buffer doesn't get too big
+            self.fft_input_buffer = self.fft_input_buffer[-self.fft_input_buffer_size:]
+
+        #Do the Fourier transform
         fft_y=abs(scipy.fftpack.fft(self.fft_input_buffer))
 
         # Cut the ffty array in half to avoid having to process duplicate values.
