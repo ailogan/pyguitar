@@ -19,6 +19,17 @@ import sys
 
 from itertools import chain, combinations
 
+#See if a test frequency is reasonably close to a reference freqency
+def within_tolerance(test_frequency, reference_frequency, tolerance, print_notes=False):
+    if(print_notes):
+        print "test_frequency: {0:9.2f}Hz reference_frequency: {1:9.2f}Hz tolerance: +/- {2:9.2f}Hz".format(test_frequency, reference_frequency, tolerance)
+
+    if((test_frequency <= (reference_frequency + tolerance)) and
+       (test_frequency >= (reference_frequency - tolerance))):
+        return True
+
+    return False
+
 class fft_test(unittest.TestCase):
     def test_freq_to_key(self):
         fa = freq_analyze.freq_analyze(data_provider.null_provider)
@@ -88,9 +99,7 @@ class fft_test(unittest.TestCase):
             freq_in_hertz = analysis_results[0][0]
 
             #Make sure that the frequency we grabbed is within 1% of what it should be
-            print "freq_in_hertz: " + str(freq_in_hertz)
-            self.assertTrue(freq_in_hertz > (x - (.01 * x)))
-            self.assertTrue(freq_in_hertz < (x + (.01 * x)))
+            self.assertTrue(within_tolerance(freq_in_hertz, x, (.01 *x), print_notes=True))
             
     def test_multiple_frequencies(self):
         print
@@ -120,13 +129,30 @@ class fft_test(unittest.TestCase):
                 result_freq = result_freqs[x]
                 test_freq = freqs[x]
                 
-                print "freq_in_hertz: {0} y: {1}".format(result_freq, test_freq)
-
                 #Make sure that the frequencies we grabbed are within 5Hz of what they should be.
-                self.assertTrue(result_freq > (test_freq - 5))
-                self.assertTrue(result_freq < (test_freq + 5))
+                self.assertTrue(within_tolerance(result_freq, test_freq, 5, print_notes=True))
 
             print "======="
+
+    def test_wav_file(self):
+        print
+        
+        filename = "Sine_wave_440.wav"
+
+        A440_test = data_provider.wav_file(filename, repeat=True)
+        reference_freq = 440
+
+        fa = freq_analyze.freq_analyze(A440_test)
+
+        #Eh, try it a bunch of times.
+        for samples in range(0, 50):
+            analysis_results = fa.iterate(1)
+
+            result_freq = analysis_results[0][0]
+            
+            #See if it's within 1Hz of 440Hz
+            self.assertTrue(within_tolerance(result_freq, reference_freq, 1, print_notes=True))
+
 
 #Give main() a single exit point (see: http://www.artima.com/weblogs/viewpost.jsp?thread=4829)
 if __name__ == "__main__":

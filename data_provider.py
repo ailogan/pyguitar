@@ -8,6 +8,8 @@
 # TODO: ADSR FTW
 
 import pyaudio
+import wave
+
 import numpy as np
 import scipy
 
@@ -110,5 +112,46 @@ class audio_input(data_provider):
         input=True)
 
     def get_data(self):
-        data = numpy.fromstring(inStream.read(chunksize), dtype=numpy.int16)
-        return data
+        pcm = numpy.fromstring(inStream.read(chunksize), dtype=numpy.int16)
+        return pcm
+
+class wav_file(data_provider):
+    chunksize = None
+    sample_rate_in_hz = None
+
+    num_channels = None
+    repeat = None
+    p = None
+    wf = None
+
+    def __init__(self, filename, repeat=False):
+        self.repeat = repeat
+        self.chunksize = 1024 #again, why not?
+
+        self.p = pyaudio.PyAudio()
+
+        self.wf = wave.open(filename, 'rb')
+
+        self.num_channels = self.wf.getnchannels()
+
+        if(self.num_channels != 1):
+            raise Exception("only mono files are supported")
+
+        self.sample_rate_in_hz = self.wf.getframerate()
+
+    #TODO: How do I mix a file down to mono?  The FFT routines aren't expecting stereo files.
+    def get_data(self):
+        data = self.wf.readframes(self.chunksize)
+
+        #Rewind at the end of the file if the repeat flag is set.
+        if((self.repeat == True) and
+           (len(data) != self.chunksize * self.num_channels * 2)):
+            #Hit the end of the file, so run it back to the beginning and try it again
+            #TODO: can probably do this a lot better.
+            print "Rewinding!"
+            self.wf.rewind()
+            data = self.wf.readframes(self.chunksize)
+
+        pcm=np.fromstring(data, dtype=np.int16)
+
+        return pcm
