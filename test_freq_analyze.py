@@ -17,6 +17,8 @@ import numpy as np
 
 import sys
 
+import time  #For sleep()
+
 from itertools import chain, combinations
 
 #See if a test frequency is reasonably close to a reference freqency
@@ -86,7 +88,7 @@ class fft_test(unittest.TestCase):
 
     def test_freqencies(self):
         print
-
+        print "Testing single oscillator"
         
         #https://oeis.org/A051109 (hyperinflation series for banknotes, but an interesting collection of numbers regardless)
         for x in [ ((n % 3) ** 2 + 1) * 10**int(n/3) for n in range(15)]:
@@ -103,6 +105,7 @@ class fft_test(unittest.TestCase):
             
     def test_multiple_frequencies(self):
         print
+        print "Testing multiple oscillators"
 
         #The frequencies we want to test
         #These are a couple of prime numbers.  Also, it turns out that the FFT isn't great at really low freqencies (eg: 11 Hz) paired with really high frequencies (eg: 20KHz)
@@ -136,6 +139,7 @@ class fft_test(unittest.TestCase):
 
     def test_wav_file(self):
         print
+        print "Opening wav file"
         
         filename = "Sine_wave_440.wav"
 
@@ -153,6 +157,28 @@ class fft_test(unittest.TestCase):
             #See if it's within 1Hz of 440Hz
             self.assertTrue(within_tolerance(result_freq, reference_freq, 1, print_notes=True))
 
+    def test_audio_input(self):
+        print
+        print "testing audio input"
+
+        sample_rate = 44100 #CD quality is good enough.
+
+        audio_in = data_provider.audio_input(sample_rate)
+
+        fa = freq_analyze.freq_analyze(audio_in)
+
+        #Wait a bit, since it's sort of a weird test to make the user provide input at a known frequency.
+        
+        for x in range(0,50):
+            num_notes = 6
+            analysis_results = fa.iterate(num_notes)
+            
+            freqs = []
+
+            for y in range(0, num_notes):
+                print "freq: {0:9.2f}".format(analysis_results[y][0]),
+
+            print
 
 #Give main() a single exit point (see: http://www.artima.com/weblogs/viewpost.jsp?thread=4829)
 if __name__ == "__main__":

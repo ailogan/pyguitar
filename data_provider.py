@@ -106,13 +106,13 @@ class audio_input(data_provider):
         self.chunksize = 1024 #I guess?  I'm not sure it matters.
 
         self.p = pyaudio.PyAudio() 
-        self.inStream = p.open(format=pyaudio.paInt16,
-                               channels=1,
-                               rate=input_rate,
-        input=True)
+        self.inStream = self.p.open(format=pyaudio.paInt16,
+                                    channels=1, #Mono is good enough
+                                    rate=self.sample_rate_in_hz,
+                                    input=True)
 
     def get_data(self):
-        pcm = numpy.fromstring(inStream.read(chunksize), dtype=numpy.int16)
+        pcm = np.fromstring(self.inStream.read(self.chunksize), dtype=np.int16)
         return pcm
 
 class wav_file(data_provider):
