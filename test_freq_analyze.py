@@ -6,6 +6,7 @@
 
 import unittest
 import freq_analyze
+import data_provider
 
 import pyaudio
 
@@ -16,44 +17,11 @@ import numpy as np
 
 import sys
 
-#quickie "don't do anything" data_provider.
-class null_provider(freq_analyze.data_provider):
-    chunksize = 1024
-    sample_rate_in_hz = 1
-    
-    def __init__(self):
-        pass
-
-    def get_data(self):
-        return map(lambda x: 0, range(0, self.chunksize))
-
-#a generic sine wave oscillator
-class oscillator(freq_analyze.data_provider):
-    hertz = None
-    chunksize = None
-    sample_rate_in_hz = None
-    current_pos = None
-
-    def __init__(self, hertz):
-        self.hertz = hertz
-        self.chunksize = 1024
-        self.current_pos = 0
-        self.sample_rate_in_hz = int(np.ceil(hertz * 2 + (.001 * hertz))) #You know what?  Let's try out the Nyquist-Shannon sampling theorem.  (In order to be uniquly identifiable the frequency has to be less than .5 the sampling frequency)
-
-    def get_data(self):
-        chunk = []
-        
-        #Divide the chunk into hundreths of a radian.  The good news is that sine waves are at least periodic.
-        for x in range(0, self.chunksize):
-            chunk.append(10 * scipy.sin(2 * pi * self.hertz * (float(self.current_pos) / self.sample_rate_in_hz)))
-            self.current_pos = self.current_pos + 1
-            self.current_pos = self.current_pos % self.sample_rate_in_hz
-            
-        return chunk
+from itertools import chain, combinations
 
 class fft_test(unittest.TestCase):
     def test_freq_to_key(self):
-        fa = freq_analyze.freq_analyze(null_provider)
+        fa = freq_analyze.freq_analyze(data_provider.null_provider)
         
         #Test two full octaves
         self.assertEqual(fa.freq_to_key(65.41), "C2")
@@ -105,24 +73,60 @@ class fft_test(unittest.TestCase):
         self.assertEqual(fa.freq_to_key(2093) , "C7")
         self.assertEqual(fa.freq_to_key(4186) , "C8")
 
-    def test_get_freqencies(self):
+    def test_freqencies(self):
         print
 
-        for x in range(1, 30000, 50):
-            test_osc = oscillator(x)
+        
+        #https://oeis.org/A051109 (hyperinflation series for banknotes, but an interesting collection of numbers regardless)
+        for x in [ ((n % 3) ** 2 + 1) * 10**int(n/3) for n in range(15)]:
+            test_osc = data_provider.oscillator(x)
 
             fa = freq_analyze.freq_analyze(test_osc)
 
             analysis_results = fa.iterate(1)
 
             freq_in_hertz = analysis_results[0][0]
-            freq_as_note  = analysis_results[0][2]
 
             #Make sure that the frequency we grabbed is within 1% of what it should be
             print "freq_in_hertz: " + str(freq_in_hertz)
             self.assertTrue(freq_in_hertz > (x - (.01 * x)))
             self.assertTrue(freq_in_hertz < (x + (.01 * x)))
             
+    def test_multiple_frequencies(self):
+        print
+
+        #The frequencies we want to test
+        #These are a couple of prime numbers.  Also, it turns out that the FFT isn't great at really low freqencies (eg: 11 Hz) paired with really high frequencies (eg: 20KHz)
+        base_freqs = [29, 349, 1013, 4583, 10271, 25097]
+
+        #Now iterate over all of the combinations (via https://stackoverflow.com/questions/464864/python-code-to-pick-out-all-possible-combinations-from-a-list)
+        #(roughly: use map to make combinations of every relevant length and then use chain to turn the generators into something we can iterate over.  Also, skip the null set.
+        for freqs in chain(*map(lambda x: combinations(base_freqs, x), range(1, len(base_freqs)+1))):
+
+            test_osc = data_provider.multi_oscillator(freqs)
+
+            fa = freq_analyze.freq_analyze(test_osc)
+            
+            analysis_results = fa.iterate(len(freqs))
+
+            result_freqs = []
+            for x in range(0, len(freqs)):
+                #these come back in power order, not note order
+                result_freqs.append(analysis_results[x][0])
+
+            result_freqs = np.sort(result_freqs)
+
+            for x in range(0, len(freqs)):
+                result_freq = result_freqs[x]
+                test_freq = freqs[x]
+                
+                print "freq_in_hertz: {0} y: {1}".format(result_freq, test_freq)
+
+                #Make sure that the frequencies we grabbed are within 5Hz of what they should be.
+                self.assertTrue(result_freq > (test_freq - 5))
+                self.assertTrue(result_freq < (test_freq + 5))
+
+            print "======="
 
 #Give main() a single exit point (see: http://www.artima.com/weblogs/viewpost.jsp?thread=4829)
 if __name__ == "__main__":

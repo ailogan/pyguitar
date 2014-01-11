@@ -4,21 +4,11 @@
 # 
 # Library that provides a class that takes in audio input, runs it through a Fourier transform and produces an array of tuples of frequency, intensity and music note.
 
+import data_provider
+
 import numpy as np
 import scipy
 import scipy.fftpack
-
-class data_provider:
-    """a class that provides audio input to the frequency analyzer.  Essentially entirely virtual."""
-    chunksize = None
-    sample_rate_in_hz = None
-
-    def __init__(self):
-        raise NotImplementedError()
-
-    def get_data(self):
-        """return a chunksize length array of 16-bit ints suitable for feeding into the FFT function."""
-        raise NotImplementedError()
 
 class freq_analyze:
     """a class that takes in input from a data_provider class, runs it through a Fourier transform and produces an array of tuples of frequency, intensity and music note."""
@@ -51,6 +41,10 @@ class freq_analyze:
         # Derived from https://en.wikipedia.org/wiki/Piano_key_frequencies
         #
         # Key 1 is A0, key 88 is C8
+
+        #Hmm
+        if(freq_in_hertz == 0.0):
+            return " "
 
         keynum = int(np.around(12 * np.log2(float(freq_in_hertz) / 440) + 49)) #Because A4 (440Hz) is the reference and the 49th key.  Round to the nearest whole number to allow for a bit of slop.
 
