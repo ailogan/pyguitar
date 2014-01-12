@@ -19,12 +19,16 @@ class freq_analyze:
     fft_input_buffer_size = None  #The idea is that we get a much more accurate FFT result if we have a bigger input window.
     sample_rate = None
 
+    fft_y = None
+
     def __init__(self, data_provider):
         self.data_provider = data_provider
 
         self.fft_input_buffer = []
         self.fft_input_buffer_size = 8 * self.data_provider.chunksize  #Not super-thrilled about this layout.
         self.sample_rate = self.data_provider.sample_rate_in_hz
+
+        self.fft_y = []
 
     def __add_data(self, pcm_data):
         self.fft_input_buffer.extend(pcm_data)
@@ -59,6 +63,10 @@ class freq_analyze:
         note_name = notes[note_idx] + str(octave)
         
         return note_name
+
+    #Useful for graphing the output in a spectrogram window
+    def get_raw_fft_output(self):
+        return self.fft_y
     
     def iterate(self, num_frequencies):
         #Take our data and convert it into a collection of frequencies.  The return value is:
@@ -85,16 +93,17 @@ class freq_analyze:
             self.fft_input_buffer = self.fft_input_buffer[-self.fft_input_buffer_size:]
 
         #Do the Fourier transform
-        fft_y=abs(scipy.fftpack.fft(self.fft_input_buffer))
+        self.fft_y = scipy.fftpack.fft(self.fft_input_buffer)
+        real_fft_y=abs(self.fft_y)
 
         # Cut the ffty array in half to avoid having to process duplicate values.
         # (the second half of the array contains the negative solutions, which don't interest me)
-        positive_fft_y = fft_y[0:len(fft_y)/2]
+        positive_fft_y = real_fft_y[0:len(real_fft_y)/2]
 
         #But we need to convert the original array to a set of frequencies, otherwise there's a chunk of energy that's missing from the frequency analysis.  The docs say:
 
         #"The returned float array f contains the frequency bin centers in cycles per unit of the sample spacing (with zero at the start). For instance, if the sample spacing is in seconds, then the frequency unit is cycles/second."
-        freqs = np.fft.fftfreq(len(fft_y)) 
+        freqs = np.fft.fftfreq(len(real_fft_y)) 
 
         #Order the indexes of the positive FFT results by intensity.
         sorted_positive_fft_y = np.argsort(positive_fft_y**2)
