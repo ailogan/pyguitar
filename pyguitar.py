@@ -14,6 +14,45 @@ import copy
 
 import numpy as np
 
+#Shared between threads
+data = None
+data_lock = None
+
+def crank_fft(fa):
+    global data, data_lock
+    previous_intensity = 0
+
+    #TODO: limit this to a certain update rate somehow?
+    while True:
+        #Get some data out of the provider
+        num_notes = 1
+        analysis_results = fa.iterate(num_notes)
+
+        freq = analysis_results[0][0]
+        intensity = analysis_results[0][1]
+        note = analysis_results[0][2]
+    
+        intensity_delta = (intensity - previous_intensity)
+        previous_intensity = intensity
+
+        print "freq: {0} intensity: {1} (delta: {2}) note: {3}".format(freq, intensity, intensity_delta, note)
+    
+        #and collect the data for the spectrogram window
+        fft_y = copy.deepcopy(fa.get_raw_fft_output())
+    
+        #Chop off the high-frequency notes that don't fit in the window
+        #fft_scale_factor = fftsize / float(len(data[-1]))
+        fft_scale_factor = len(fft_y) / len(data[-1])
+    
+        fft_y=abs(fft_y[0:(len(fft_y)/fft_scale_factor)]) / (500 * 100) #This does a lot.  Throw out the second half of the FFT result (because they're negative frequencies?), remove the complex part of the FFT result and then scale the results to stay within 0-256.
+        
+        for i in range(len(fft_y)):
+            if fft_y[i]<0: fft_y[i]=0
+
+        with data_lock:
+            data=np.roll(data,-1,0)
+            data[-1]=fft_y[::-1]
+
 def positive_int(string):
     num = int(string)
     if (num <= 0):
@@ -57,10 +96,22 @@ def main(argv=None):
     
     clk = pygame.time.Clock()
 
-    previous_intensity = 0
+    global data, data_lock
 
     #Initialize the data array to be all zeros.
     data=np.array(np.zeros((windowWidth,windowHeight)),dtype=int)
+
+    #Initialize the lock object
+    data_lock = threading.Lock()
+
+    #And give it to the data collection thread.
+    input_thread = threading.Thread(target=crank_fft, args=[fa])
+
+    #Make the thread quit when the program quits
+    input_thread.daemon = True
+
+    #launch thread!
+    input_thread.start()
 
     while True:
         #pygame event loop
@@ -69,36 +120,11 @@ def main(argv=None):
                 pygame.quit()
                 sys.exit()
 
-        #Get some data out of the provider
-        num_notes = 1
-        analysis_results = fa.iterate(num_notes)
+        #Expecting that the fft thread wil keep updating the data array asynchronously.
+        
+        with data_lock:
+            pygame.surfarray.blit_array(world,data) #data into window
 
-        freq = analysis_results[0][0]
-        intensity = analysis_results[0][1]
-        note = analysis_results[0][2]
-
-        intensity_delta = (intensity - previous_intensity)
-        previous_intensity = intensity
-
-        print "freq: {0} intensity: {1} (delta: {2}) note: {3}".format(freq, intensity, intensity_delta, note)
-
-        #and collect the data for the spectrogram window
-        fft_y = copy.deepcopy(fa.get_raw_fft_output())
-
-        #Chop off the high-frequency notes that don't fit in the window
-        #fft_scale_factor = fftsize / float(len(data[-1]))
-        fft_scale_factor = len(fft_y) / len(data[-1])
-
-        fft_y=abs(fft_y[0:(len(fft_y)/fft_scale_factor)]) / (500 * 100) #This does a lot.  Throw out the second half of the FFT result (because they're negative frequencies?), remove the complex part of the FFT result and then scale the results to stay within 0-256.
-
-        for i in range(len(fft_y)):
-            if fft_y[i]<0: fft_y[i]=0
-
-        #And stuff the data we just got onto the back of the data that's going into the window
-        data=np.roll(data,-1,0)
-        data[-1]=fft_y[::-1]
-
-        pygame.surfarray.blit_array(world,data) #data into window
         screen.blit(world, (0,0))
         pygame.display.flip() #render window
         clk.tick(30) #limit to 30FPS
