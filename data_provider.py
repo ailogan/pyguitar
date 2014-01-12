@@ -48,19 +48,29 @@ class oscillator(data_provider):
     chunksize = None
     sample_rate_in_hz = None
     current_pos = None
+    volume = None
 
-    def __init__(self, hertz):
+    def __init__(self, hertz, sample_rate_in_hz = None, volume = 1, chunksize=1024):
         self.hertz = hertz
-        self.chunksize = 1024
         self.current_pos = 0
-        self.sample_rate_in_hz = int(np.ceil(hertz * 2 + (.001 * hertz))) #You know what?  Let's try out the Nyquist-Shannon sampling theorem.  (In order to be uniquly identifiable the frequency has to be less than .5 the sampling frequency)
+
+        self.chunksize = chunksize
+
+        self.volume = volume
+
+        #Calculate the sample rate if it wasn't passed in as an argument
+        if(not sample_rate_in_hz):
+            self.sample_rate_in_hz = int(np.ceil(hertz * 2 + (.001 * hertz))) #You know what?  Let's try out the Nyquist-Shannon sampling theorem.  (In order to be uniquly identifiable the frequency has to be less than .5 the sampling frequency)
+
+        else:
+            self.sample_rate_in_hz = sample_rate_in_hz
 
     def get_data(self):
         chunk = []
         
         #And sample the sine wave!
         for x in range(0, self.chunksize):
-            chunk.append(10 * scipy.sin(2 * pi * self.hertz * (float(self.current_pos) / self.sample_rate_in_hz)))
+            chunk.append(self.volume * scipy.sin(2 * pi * self.hertz * (float(self.current_pos) / self.sample_rate_in_hz)))
             self.current_pos = self.current_pos + 1
             self.current_pos = self.current_pos % self.sample_rate_in_hz
             
@@ -71,29 +81,60 @@ class oscillator(data_provider):
 class multi_oscillator(data_provider):
     hertzen = None
     chunksize = None
+    volume = None
     sample_rate_in_hz = None
     current_pos = None
+    oscillators = None
 
-    def __init__(self, hertzen):
+    def __init__(self, hertzen, sample_rate_in_hz=None, volume = 1, chunksize=1024):
         self.hertzen = hertzen
-        self.chunksize = 1024
+
+        self.chunksize = chunksize
+
+        self.volume = volume
+
         self.current_pos = 0
-        max_freq = max(hertzen)
-        self.sample_rate_in_hz = int(np.ceil(max_freq * 2 + (.001 * max_freq))) #You know what?  Let's try out the Nyquist-Shannon sampling theorem.  (In order to be uniquly identifiable the frequency has to be less than .5 the sampling frequency)
+
+        self.oscillators = []
+
+        #calculate an appropriate rate if we're not trying to force a particular sample rate
+        if(not sample_rate_in_hz):
+            max_freq = max(hertzen)
+            self.sample_rate_in_hz = int(np.ceil(max_freq * 2 + (.001 * max_freq))) #You know what?  Let's try out the Nyquist-Shannon sampling theorem.  (In order to be uniquly identifiable the frequency has to be less than .5 the sampling frequency)
+
+        else:
+            self.sample_rate_in_hz = sample_rate_in_hz
+
+        for hz in hertzen:
+            #These all have to be the same sample rate and chunksize because we're going to be merging them together later
+            self.oscillators.append(oscillator(hz, sample_rate_in_hz = self.sample_rate_in_hz, volume = self.volume, chunksize = self.chunksize))
 
     def get_data(self):
         chunk = []
-        
+
         #And sample the sine waves!
         for x in range(0, self.chunksize):
             value = 0
             for hertz in self.hertzen:
-                value += scipy.sin(2 * pi * hertz * (float(self.current_pos) / self.sample_rate_in_hz))
+                value += (self.volume * scipy.sin(2 * pi * hertz * (float(self.current_pos) / self.sample_rate_in_hz)))
 
-            chunk.append(value)
+            chunk.append(self.volume * value)
             self.current_pos = self.current_pos + 1
-            
+
         return chunk
+
+#         #Seed the result array with a bunch of zeros
+#         chunk = [0 for x in range(0, self.chunksize)]
+#         
+#         #Gather data and merge it all together
+#         for osc in self.oscillators:
+#             osc_array = osc.get_data()
+#             
+#             #There's got to be a cleaner way to do this.
+#             for x in range(0,len(chunk)):
+#                 chunk[x] += osc_array[x]
+# 
+#         return chunk
 
 class audio_input(data_provider):
     chunksize = None
