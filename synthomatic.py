@@ -25,17 +25,29 @@ def key_to_freq(key):
     # Key 1 is A0, key 88 is C8
     print key
 
-    num_harmonics = 4
+    num_harmonics = 6
 
     twelfth_root_of_two = np.power(2, float(1)/12)
     freq = (np.power(twelfth_root_of_two, (key - 49)) * 440)
 
     freq_array = []
 
+    #Fundamental tone
+    #freq_array.append(freq)
+
     #Odd harmonics are woodwind-esque.
-    for x in range(1, (num_harmonics * 2) + 1, 2):
+    #for x in range(1, (num_harmonics * 2) + 1, 2):
+    #    freq_array.append(freq * x)
+
+    #Even harmonics
+    #for x in range(2, (num_harmonics * 2) +1, 2):
+    #    freq_array.append(freq * x)
+
+
+    #And all of the harmonics are more like an organ
+    for x in range(1, (num_harmonics + 1)):
         freq_array.append(freq * x)
-    
+
     return freq_array
 
 def main(argv=None):
@@ -51,7 +63,26 @@ def main(argv=None):
 
     #First couple notes of Also Sprach Zarathustra.
     #format is: (piano_key_#, duration (seconds-ish))
-    notes = [(40,1),(47,1),(52,1),(44,.25),(43,2)]
+    #notes = [(40,1),(47,1),(52,1),(44,.25),(43,2)]
+    
+    #star wars theme!
+    notes = [ (38,1), (45,1), (43,.25), (42,.25), (40,.25), (50,1),
+              (45,1), (43,.25), (42,.25), (40,.25), (50,1),
+              (45,1), (43,.25), (42,.25), (43,.25), (40,1),
+             
+             #repeat
+              (38,1), (45,1), (43,.25), (42,.25), (40,.25), (50,1),
+              (45,1), (43,.25), (42,.25), (40,.25), (50,1),
+              (45,1), (43,.25), (42,.25), (43,.25), (40,1),
+              
+              (45,.25), (47,.5), ('R',.25), (47,.5), (55,.25), (54,.25), (52,.25), (50, .25), ('R', .25), (50,.125), (52, .125), (54, .125), (52, .125), (47, .25), (49, .5),
+              
+              (45,.25), (47,.5), ('R',.25), (47,.5), (55,.25), (54,.25), (52,.25), (50, .25), (57, .5), (52, 1),
+              
+              (45,.25), (47,.5), ('R',.25), (47,.5), (55,.25), (54,.25), (52,.25), (50, .25), ('R', .25), (50,.125), (52, .125), (54, .125), (52, .125), (47, .25), (49, .5),
+
+              (45,.25), ('R',.25), (45,.25), (50,.25), (48,.25), (46,.25), (45,.25), (43,.25), (41,.25), (40,.25), (38,.25), (45,1), (38,.125)
+    ]
 
     #Open the audio interface
     p = pyaudio.PyAudio()
@@ -62,9 +93,16 @@ def main(argv=None):
                     output=True)
     #And play!
     for note in notes:
+        
+        #slapdash way to implement rests.
+        if(note[0] == 'R'):
+            print 'R'
+            time.sleep(note[1])
+            continue
+
         hertzen = key_to_freq(note[0])
         print hertzen
-        test_osc = data_provider.multi_oscillator(hertzen, sample_rate_in_hz=sample_rate, volume = .1)
+        test_osc = data_provider.multi_oscillator(hertzen, sample_rate_in_hz=sample_rate, volume = .1, chunksize=1)
         
         starttime = time.clock()
 
