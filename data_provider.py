@@ -142,9 +142,9 @@ class audio_input(data_provider):
     p = None
     inStream = None
 
-    def __init__(self, sample_rate):
+    def __init__(self, sample_rate, chunksize=1024):
         self.sample_rate_in_hz = sample_rate
-        self.chunksize = 1024 #I guess?  I'm not sure it matters.
+        self.chunksize = chunksize
 
         self.p = pyaudio.PyAudio() 
         self.inStream = self.p.open(format=pyaudio.paInt16,
@@ -165,9 +165,11 @@ class wav_file(data_provider):
     p = None
     wf = None
 
-    def __init__(self, filename, repeat=False):
+    stream = None
+
+    def __init__(self, filename, chunksize=1024, repeat=False, play=False):
         self.repeat = repeat
-        self.chunksize = 1024 #again, why not?
+        self.chunksize = chunksize
 
         self.p = pyaudio.PyAudio()
 
@@ -179,6 +181,12 @@ class wav_file(data_provider):
             raise Exception("only mono files are supported")
 
         self.sample_rate_in_hz = self.wf.getframerate()
+
+        if(play):
+            self.stream = self.p.open(format=self.p.get_format_from_width(self.wf.getsampwidth()),
+                                      channels=self.num_channels,
+                                      rate=self.sample_rate_in_hz,
+                                      output=True)
 
     #TODO: How do I mix a file down to mono?  The FFT routines aren't expecting stereo files.
     def get_data(self):
@@ -192,6 +200,9 @@ class wav_file(data_provider):
             print "Rewinding!"
             self.wf.rewind()
             data = self.wf.readframes(self.chunksize)
+
+        if(self.stream):
+            self.stream.write(data)
 
         pcm=np.fromstring(data, dtype=np.int16)
 

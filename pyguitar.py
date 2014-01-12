@@ -22,6 +22,8 @@ def crank_fft(fa):
     global data, data_lock
     previous_intensity = 0
 
+    clk = pygame.time.Clock()
+
     #TODO: limit this to a certain update rate somehow?
     while True:
         #Get some data out of the provider
@@ -35,7 +37,7 @@ def crank_fft(fa):
         intensity_delta = (intensity - previous_intensity)
         previous_intensity = intensity
 
-        print "freq: {0} intensity: {1} (delta: {2}) note: {3}".format(freq, intensity, intensity_delta, note)
+        print "freq: {0:9.2f} intensity: {1:13.2f} (delta: {2:13.2f}) note: {3:3s}".format(freq, intensity, intensity_delta, note)
     
         #and collect the data for the spectrogram window
         fft_y = copy.deepcopy(fa.get_raw_fft_output())
@@ -52,6 +54,9 @@ def crank_fft(fa):
         with data_lock:
             data=np.roll(data,-1,0)
             data[-1]=fft_y[::-1]
+
+        #limit the rate we update at to save some CPU (40FPS should be plenty)
+        clk.tick(20)
 
 def positive_int(string):
     num = int(string)
@@ -87,10 +92,11 @@ def main(argv=None):
 
     #Set up the analyzer
     if(args.infile):
-        data_prov = data_provider.wav_file(args.infile, repeat=True)
+        data_prov = data_provider.wav_file(args.infile, chunksize=1024, repeat=True, play=True)
 
     else:
-        data_prov = data_provider.audio_input()
+        sample_rate = 44100
+        data_prov = data_provider.audio_input(sample_rate)
 
     fa = freq_analyze.freq_analyze(data_prov)
     
