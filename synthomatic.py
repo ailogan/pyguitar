@@ -15,7 +15,14 @@ import data_provider
 import pyaudio
 import wave
 
+#http://web.mit.edu/music21/
+#import music21
+
+import musicxml_parse_test
+
 import numpy as np
+
+import argparse
 
 import time
 
@@ -25,7 +32,7 @@ def key_to_freq(key):
     # Key 1 is A0, key 88 is C8
     print key
 
-    num_harmonics = 6
+    num_harmonics = 5
 
     twelfth_root_of_two = np.power(2, float(1)/12)
     freq = (np.power(twelfth_root_of_two, (key - 49)) * 440)
@@ -50,22 +57,74 @@ def key_to_freq(key):
 
     return freq_array
 
-def main(argv=None):
+def make_notes_from_notearray(notearray):
+    notes = []
+    for note_data in notearray:
+        when = note_data[0]
+        note = note_data[1]
+        duration_in_ms = note_data[2]
 
-    #Define an oscillator
+        #My cheesy format can't handle chords yet.
+        if(note.is_chord_member):
+            continue
 
-    #hz_array = [x * 440 for x in range(1,4)]
-    #print hz_array
-    #sample_rate = 44100  #CD quality sine waves.
+        key = ""
+        
+        #format is: (piano_key_#, duration (seconds-ish)) ("R" is a rest)
+        
+        if(note.step is None):
+            key = "R"
 
-    #44.1KHz is actually kind of pushing it.
-    sample_rate = 22050
+        else:
+            key = note_to_key(note)
+            print key
+            
+        duration_in_sec = (duration_in_ms / 1000)
+        
+        notes.append((key, duration_in_sec))
 
+    return notes
+
+def note_to_key(note):
+    step = note.step
+    alter = note.alter  #sharps are positive
+    octave = note.octave
+
+    #A0 is 1, C1 is 4
+
+    #A is the first note in a 12-tone scale, D is the 6th, etc.
+    step_to_num = {'A' : 1,
+                   'B' : 3,
+                   'C' : 4,
+                   'D' : 6,
+                   'E' : 8,
+                   'F' : 9,
+                   'G' : 11}
+
+
+    #And handle sharps or flats
+    step_num = step_to_num[step]
+
+    if(alter is not None):
+        step_num + alter
+
+    #Octaves start at C
+    if(step_num > 3):
+        octave -= 1
+
+    #And calculate the key number.
+    key_num = step_num  + (octave * 12)
+
+    print "{0}{1} is {2}".format(note.step, note.octave, key_num)
+
+    return key_num
+
+def get_default_notes():
     #First couple notes of Also Sprach Zarathustra.
     #format is: (piano_key_#, duration (seconds-ish))
     #notes = [(40,1),(47,1),(52,1),(44,.25),(43,2)]
     
-    #star wars theme!
+    #the star wars theme is a fine default.
     notes = [ (38,1), (45,1), (43,.25), (42,.25), (40,.25), (50,1),
               (45,1), (43,.25), (42,.25), (40,.25), (50,1),
               (45,1), (43,.25), (42,.25), (43,.25), (40,1),
@@ -83,6 +142,28 @@ def main(argv=None):
 
               (45,.25), ('R',.25), (45,.25), (50,.25), (48,.25), (46,.25), (45,.25), (43,.25), (41,.25), (40,.25), (38,.25), (45,1), (38,.125)
     ]
+
+    return notes
+
+def main(argv=None):
+    
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--infile", help="path to a musicXML file")
+
+    args = parser.parse_args()
+
+    notes = None
+
+    if(args.infile):
+        music_xml = musicxml_parse_test.mxl_container(args.infile)
+        notearray = music_xml.get_note_array()
+        notes = make_notes_from_notearray(notearray)
+
+    else:
+        notes = get_default_notes()
+
+    #44.1KHz is actually kind of pushing it, so do half that.
+    sample_rate = 22050
 
     #Open the audio interface
     p = pyaudio.PyAudio()
