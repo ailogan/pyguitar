@@ -16,22 +16,20 @@ import argparse
 
 import xml.etree.ElementTree as ET
 
-#even simpler container for a rest
-class rest:
-    duration = None
-
-    def __init__(self, duration = None):
-        self.duration = duration
-
 #Very simple container for a note  If there's no step and no octave then it's a rest.
 class note:
     step = None     #Which note (A, B, C, whatever)
+    alter = None #positive is sharp
     octave = None   #which octave
     duration_in_ticks = None #how many ticks
     is_chord_member = None #Is it part of a chord?
 
-    def __init__(self, step = None, octave = None, duration_in_ticks = None, is_chord_member = None):
+    def __init__(self, step = None, alter = None, octave = None, duration_in_ticks = None, is_chord_member = None):
         self.step = step
+
+        if(alter is not None):
+            self.alter = int(alter)
+
         self.octave = octave
         self.duration_in_ticks = duration_in_ticks
         self.is_chord_member = is_chord_member
@@ -87,9 +85,13 @@ class mxl_container:
 
         self.ms_per_tick = 1 / (float(ticks_per_minute) / 60 / 1000)
 
+        print "update: tempo: {0:3d}, divisions: {1:5d}, ms_per_tick: {2:4.2f}".format(self.tempo, self.divisions, self.ms_per_tick)
+
+
     def parse_note(self, note_node):
         step = None
         octave = None
+        alter = None
         duration_in_ticks = None
         is_chord_member = None
 
@@ -97,6 +99,11 @@ class mxl_container:
         if (note_node.find("./pitch") is not None):
             step = note_node.find("./pitch/step").text
             octave = note_node.find("./pitch/octave").text
+
+            alter_node = note_node.find("./pitch/alter")
+
+            if(alter_node is not None):
+                alter = alter_node.text
 
         #Sounded notes and rests both have durations
         duration_in_ticks = note_node.find("./duration").text
@@ -107,7 +114,7 @@ class mxl_container:
         else:
             is_chord_member = False
 
-        return note(step=step, octave=octave, duration_in_ticks=duration_in_ticks, is_chord_member=is_chord_member)
+        return note(step=step, alter=alter, octave=octave, duration_in_ticks=duration_in_ticks, is_chord_member=is_chord_member)
 
     def parse_time(self, item):
         for element in item:
@@ -260,7 +267,7 @@ def walk_parts(thing, level):
 def main(argv=None):
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--infile", help="path to a wav file", required=True)
+    parser.add_argument("--infile", help="path to a musicXML file", required=True)
 
     args = parser.parse_args()
     
@@ -268,12 +275,12 @@ def main(argv=None):
 
     music_xml = mxl_container(args.infile)
 
-    notearrays = music_xml.get_note_array()
+    notearray = music_xml.get_note_array()
 
-    for notearray in notearrays:
-        when = notearray[0]
-        note = notearray[1]
-        duration_in_ms = notearray[2]
+    for note_data in notearray:
+        when = note_data[0]
+        note = note_data[1]
+        duration_in_ms = note_data[2]
 
         what = ""
         note_name = ""
@@ -281,7 +288,16 @@ def main(argv=None):
         #What is the name of this note?
         if(note.step is not None and
            note.octave is not None):
-            note_name = " {0}{1}".format(note.step, note.octave)
+            alter = ""
+            if(note.alter is not None):
+                if(note.alter > 0):
+                    #Things can have many sharps or flats according to the musicxml spec
+                    alter = "#" * note.alter
+
+                else:
+                    alter = "-" * abs(note.alter)
+
+            note_name = " {0}{1}{2}".format(note.step, alter, note.octave)
 
             #Root notes, weirdly enough, don't get the chord flag
             if(note.is_chord_member):
@@ -294,10 +310,7 @@ def main(argv=None):
         else:
             what = "rest"
 
-        print "Found {0:5s}{1:3s}: {2:9.2f} ms at {3:9.2f} ms".format(what, note_name, duration_in_ms, when)
-
-    
-    print "tempo: {0}, divisions: {1}, ms_per_tick: {2}".format(music_xml.tempo, music_xml.divisions, music_xml.ms_per_tick)
+        print "Found {0:5s}{1:>4s}: {2:9.2f} ms at {3:9.2f} ms".format(what, note_name, duration_in_ms, when)
 
     #walk_parts(music_xml.parts, 0)
 

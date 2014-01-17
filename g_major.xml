@@ -367,12 +367,13 @@
 </note>
 <note>
 <pitch>
-<step>G</step>
+<step>F</step>
 <octave>5</octave>
+<alter>1</alter>
 </pitch>
 <notations>
 <technical>
-<fret>3</fret>
+<fret>2</fret>
 <string>1</string>
 </technical>
 </notations>
