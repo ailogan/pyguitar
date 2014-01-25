@@ -103,6 +103,8 @@ def main(argv=None):
     #How quickly the sprites will scroll
     ms_per_pixel = 10
 
+    pixels_per_ms = 1.0 / ms_per_pixel
+
     #What color they are
     sprite_color = [200,100,0]
 
@@ -110,6 +112,9 @@ def main(argv=None):
     #TODO: can eventually get the number of strings from the musicXML file
     num_strings = 6
     sprite_height = (windowHeight / num_strings)
+
+    #Start near the right side of the screen
+    x_offset = math.ceil(windowWidth * .9)
 
     for note_data in notearray:
         when = note_data[0]
@@ -119,8 +124,9 @@ def main(argv=None):
         #Is this a rest?
         if(note.step is None):
             continue
-        
-        sprite_width = math.ceil(float(duration_in_ms) / ms_per_pixel)
+
+        #pixels = ms * (pixels / ms)
+        sprite_width = math.ceil(duration_in_ms * pixels_per_ms)
 
         sprite = pygame.Surface([sprite_width, sprite_height])
         sprite.fill(sprite_color)
@@ -135,9 +141,9 @@ def main(argv=None):
 
         #Now we figure out where this is supposed to be.
 
-        start_x_pos = math.ceil(float(when) / ms_per_pixel)
+        start_x_pos = math.ceil(when * pixels_per_ms) + x_offset
 
-        #String 6 is on the bottom, string 1 is on the top.  (0,0) is the top left of the screen
+        #String 6 (low E) is on the bottom, string 1 (high E) is on the top.  (0,0) is the top left of the screen
 
         start_y_pos = sprite_height * (guitar_string - 1)
 
@@ -147,19 +153,34 @@ def main(argv=None):
 
     clk=pygame.time.Clock()
 
+    # Whooo unit analysis
+    # pixel / frame = (pixel / ms) * (ms / frame)
+
+    ms_per_frame = 1000.0 / fps
+    pixels_per_frame = pixels_per_ms * ms_per_frame
+
     while 1:
         for event in pygame.event.get(): #check if we need to exit
                 if event.type == pygame.QUIT:pygame.quit();sys.exit()
 
         screen.fill((100,100,100))
-        
-        image_num = 0
 
         for note_sprite in note_sprites:
-            
-            screen.blit(note_sprite.sprite, note_sprite.pos)
+            xpos = note_sprite.pos[0]
+            xwidth = note_sprite.sprite.get_width()
+
+            #Don't bother drawing sprites that are off the screen
+            if((xpos+xwidth >= 0) and
+               (xpos <= windowWidth)):
+                screen.blit(note_sprite.sprite, note_sprite.pos)
+
+            #Scroll to the right
+            note_sprite.move([-pixels_per_frame, 0])
 
             #print "{0} {1} {2} {3}".format(xpos, ypos, dx_per_frame, dy_per_frame)
+
+        #Line should go over the notes
+        pygame.draw.line(screen, [255,255,255], [windowWidth * .2, 0], [windowWidth * .2, windowHeight], 5)
 
         pygame.display.flip() #RENDER WINDOW
         clk.tick(fps) #limit the fps
