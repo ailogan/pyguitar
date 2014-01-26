@@ -23,14 +23,24 @@ class note:
     octave = None   #which octave
     duration_in_ticks = None #how many ticks
     is_chord_member = None #Is it part of a chord?
+    string = None
+    fret = None
 
-    def __init__(self, step = None, alter = None, octave = None, duration_in_ticks = None, is_chord_member = None):
+    def __init__(self, step = None, alter = None, octave = None, string=string, fret=fret, duration_in_ticks = None, is_chord_member = None):
         self.step = step
 
         if(alter is not None):
             self.alter = int(alter)
 
-        self.octave = octave
+        if(octave is not None):
+            self.octave = int(octave)
+
+        if(string is not None):
+            self.string = int(string)
+
+        if(fret is not None):
+            self.fret = int(fret)
+
         self.duration_in_ticks = duration_in_ticks
         self.is_chord_member = is_chord_member
 
@@ -50,6 +60,9 @@ class mxl_container:
     root = None
     parts = None
 
+    fret = None
+    string = None
+
     #Path to a musicxml file
     def __init__(self, xmlfile):
         self.tempo = 90 #The default according to the musicxml docs.
@@ -59,6 +72,9 @@ class mxl_container:
         self.root = tree.getroot()
 
         self.parts = []
+
+        self.fret = None
+        self.string = None
 
         #Try to stuff the XML file into a useful container.
 
@@ -94,6 +110,8 @@ class mxl_container:
         alter = None
         duration_in_ticks = None
         is_chord_member = None
+        fret = None
+        string = None
 
         #Is there a pitch?
         if (note_node.find("./pitch") is not None):
@@ -105,6 +123,11 @@ class mxl_container:
             if(alter_node is not None):
                 alter = alter_node.text
 
+        #How about a fret and a string?
+        if (note_node.find("./notations/technical") is not None):
+            fret = note_node.find("./notations/technical/fret").text
+            string = note_node.find("./notations/technical/string").text
+
         #Sounded notes and rests both have durations
         duration_in_ticks = note_node.find("./duration").text
 
@@ -114,7 +137,7 @@ class mxl_container:
         else:
             is_chord_member = False
 
-        return note(step=step, alter=alter, octave=octave, duration_in_ticks=duration_in_ticks, is_chord_member=is_chord_member)
+        return note(step=step, alter=alter, octave=octave, string=string, fret=fret, duration_in_ticks=duration_in_ticks, is_chord_member=is_chord_member)
 
     def parse_time(self, item):
         for element in item:
@@ -182,13 +205,16 @@ class mxl_container:
 
         return notearray
 
+    #How many parts are in this song?
+    def get_num_parts(self):
+        return len(self.parts)
+
     #Get the notes
-    def get_note_array(self):
+    def get_note_array(self, part=0):
 
         notearray = []
 
-        #For now we're only looking at the first part
-        measures = self.parts[0]
+        measures = self.parts[part]
 
         for measure in measures:
             notes = self.parse_measure(measure)
@@ -284,6 +310,8 @@ def main(argv=None):
 
         what = ""
         note_name = ""
+        fret = ""
+        string = ""
 
         #What is the name of this note?
         if(note.step is not None and
@@ -305,12 +333,14 @@ def main(argv=None):
 
             else:
                 what = "note"
+                fret = note.fret
+                string = note.string
 
         #It's a rest if it doesn't have a name
         else:
             what = "rest"
 
-        print "Found {0:5s}{1:>4s}: {2:9.2f} ms at {3:9.2f} ms".format(what, note_name, duration_in_ms, when)
+        print "Found {0:5s}{1:>4s}: string: {2:2} fret: {3:2} {4:9.2f} ms at {5:9.2f} ms".format(what, note_name, string, fret, duration_in_ms, when)
 
     #walk_parts(music_xml.parts, 0)
 
