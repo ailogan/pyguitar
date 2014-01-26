@@ -82,72 +82,6 @@ def play_tones():
         data_buffer = buffer(data_struct)
         audio_stream.write(data_buffer)
 
-def key_to_freq(key):
-    # Derived from https://en.wikipedia.org/wiki/Piano_key_frequencies
-    #
-    # Key 1 is A0, key 88 is C8
-    #print key
-
-    num_harmonics = 0
-
-    twelfth_root_of_two = math.pow(2, float(1)/12)
-    freq = (math.pow(twelfth_root_of_two, (key - 49)) * 440)
-
-    freq_array = []
-
-    #Fundamental tone
-    freq_array.append(freq)
-
-    #Odd harmonics
-    for x in range(1, (num_harmonics * 2) + 1, 2):
-        freq_array.append(freq * x)
-
-    #Even harmonics
-    #for x in range(2, (num_harmonics * 2) +1, 2):
-    #    freq_array.append(freq * x)
-
-    #Plucked strings have all of the harmonics, but the odds are louder than the evens.  Let's simulate that by calculating the odd harmonics twice, I guess
-    for x in range(1, (num_harmonics + 1)):
-        freq_array.append(freq * x)
-
-    return sorted(freq_array)
-
-def note_to_key(note):
-    step = note.step
-    alter = note.alter  #sharps are positive
-    octave = note.octave
-
-    #A0 is 1, C1 is 4
-
-    #A is the first note in a 12-tone scale, D is the 6th, etc.
-    step_to_num = {'A' : 1,
-                   'B' : 3,
-                   'C' : 4,
-                   'D' : 6,
-                   'E' : 8,
-                   'F' : 9,
-                   'G' : 11}
-
-
-    #And handle sharps or flats
-    step_num = step_to_num[step]
-
-    if(alter is not None):
-        step_num + alter
-
-    #octave -= 1
-
-    #Octaves start at C
-    if(step_num > 3):
-        octave -= 1
-
-    #And calculate the key number.
-    key_num = step_num  + (octave * 12)
-
-    #print "{0}{1} is {2}".format(note.step, note.octave, key_num)
-
-    return key_num
-
 def positive_int(string):
     num = int(string)
     if (num <= 0):
@@ -195,7 +129,7 @@ def main(argv=None):
     fontobj = pygame.font.Font(None, 50)
 
     #How quickly the sprites will scroll
-    ms_per_pixel = 1
+    ms_per_pixel = 5
 
     pixels_per_ms = 1.0 / ms_per_pixel
 
@@ -203,7 +137,7 @@ def main(argv=None):
     sprite_color = [200,100,0]
 
     #Subdivide the window so that each string has its own lane
-    #TODO: can eventually get the number of strings from the musicXML file
+    #TODO: should eventually get the number of strings from the musicXML file
     num_strings = 6
     sprite_height = (windowHeight / num_strings)
 
@@ -263,7 +197,7 @@ def main(argv=None):
     #Initialize the lock object
     hertzen_lock = threading.Lock()
 
-    #And give it to the audio thread.
+    #And set up the thread responsible for playing tones
     audio_thread = threading.Thread(target=play_tones)
 
     #Make the thread quit when the program quits
@@ -298,7 +232,7 @@ def main(argv=None):
                 if((line_pos_x >= xpos) and
                    (line_pos_x <= xpos + xwidth)):
 
-                    current_hertzen.extend(key_to_freq(note_to_key(note_sprite.note)))
+                    current_hertzen.extend([note_sprite.note.freq])
 
 
             #Scroll sprite to the right
