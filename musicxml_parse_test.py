@@ -11,6 +11,7 @@
 # and build the data structures I need instead.
 
 import sys
+import math
 
 import argparse
 
@@ -19,14 +20,17 @@ import xml.etree.ElementTree as ET
 #Very simple container for a note  If there's no step and no octave then it's a rest.
 class note:
     step = None     #Which note (A, B, C, whatever)
-    alter = None #positive is sharp
+    alter = None    #positive is sharp
     octave = None   #which octave
     duration_in_ticks = None #how many ticks
-    is_chord_member = None #Is it part of a chord?
-    string = None
-    fret = None
+    is_chord_member = None  #Is it part of a chord?
 
-    def __init__(self, step = None, alter = None, octave = None, string=string, fret=fret, duration_in_ticks = None, is_chord_member = None):
+    string = None  #If it's a string instrument, which string?
+    fret = None    #And which fret?
+
+    freq = None    #Frequency of the note in hertz
+
+    def __init__(self, step = None, alter = None, octave = None, string = None, fret = None, duration_in_ticks = None, is_chord_member = None):
         self.step = step
 
         if(alter is not None):
@@ -43,6 +47,46 @@ class note:
 
         self.duration_in_ticks = duration_in_ticks
         self.is_chord_member = is_chord_member
+
+        self.freq = self.make_freq()
+
+    def make_freq(self):
+        if(self.step == None):
+            return
+
+        #A is the first note in a 12-tone scale, D is the 6th, etc.
+        step_to_num = {'A' : 1,
+                       'B' : 3,
+                       'C' : 4,
+                       'D' : 6,
+                       'E' : 8,
+                       'F' : 9,
+                       'G' : 11}
+
+        
+        #And handle sharps or flats
+        step_num = step_to_num[self.step]
+
+        if(self.alter is not None):
+            step_num += self.alter
+
+        #print "{0} {1} {2}".format(self.step, self.alter, step_num)
+
+        my_octave = self.octave
+
+        #Octaves start at C
+        if(step_num > 3):
+            my_octave -= 1
+
+        #And calculate the key number.
+        key_num = step_num  + (my_octave * 12)
+        
+        #Now that we have the key number, figure out the frequency
+        twelfth_root_of_two = math.pow(2, float(1)/12)
+        freq = (math.pow(twelfth_root_of_two, (key_num - 49)) * 440)
+
+        return freq
+        
 
 class mxl_container:
     #The current state of a couple of important pieces of metadata
@@ -312,6 +356,7 @@ def main(argv=None):
         note_name = ""
         fret = ""
         string = ""
+        freq = "{0:9s}".format("")
 
         #What is the name of this note?
         if(note.step is not None and
@@ -333,14 +378,16 @@ def main(argv=None):
 
             else:
                 what = "note"
-                fret = note.fret
-                string = note.string
+
+            fret = note.fret
+            string = note.string
+            freq = "{0:9.2f}".format(note.freq)
 
         #It's a rest if it doesn't have a name
         else:
             what = "rest"
 
-        print "Found {0:5s}{1:>4s}: string: {2:2} fret: {3:2} {4:9.2f} ms at {5:9.2f} ms".format(what, note_name, string, fret, duration_in_ms, when)
+        print "Found {0:5s}{1:>4s}: string: {2:2} fret: {3:2} freq: {4} Hz {5:9.2f} ms at {6:9.2f} ms".format(what, note_name, string, fret, freq, duration_in_ms, when)
 
     #walk_parts(music_xml.parts, 0)
 
