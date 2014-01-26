@@ -7,13 +7,20 @@
 # TODO: A less generic name would be nice.
 # TODO: ADSR FTW
 
+import cProfile
+
 import pyaudio
 import wave
 
 import numpy as np
-import scipy
 
-from scipy import pi
+import math
+from math import pi
+
+#Winds up being incredibly slower than just calling math.sin()
+#import scipy
+#from scipy import pi
+
 
 class data_provider:
     """a class that wraps fairly generic audio providers.  Essentially entirely virtual."""
@@ -49,10 +56,11 @@ class oscillator(data_provider):
     sample_rate_in_hz = None
     current_pos = None
     volume = None
+    tau = 2 * pi
 
     def __init__(self, hertz, sample_rate_in_hz = None, volume = 1, chunksize=1024):
         self.hertz = hertz
-        self.current_pos = 0
+        self.current_pos = 0.0
 
         self.chunksize = chunksize
 
@@ -70,9 +78,11 @@ class oscillator(data_provider):
         
         #And sample the sine wave!
         for x in range(0, self.chunksize):
-            chunk.append(self.volume * scipy.sin(2 * pi * self.hertz * (float(self.current_pos) / self.sample_rate_in_hz)))
+            chunk.append(self.volume * math.sin(self.tau * self.hertz * (self.current_pos / self.sample_rate_in_hz)))
             self.current_pos = self.current_pos + 1
-            self.current_pos = self.current_pos % self.sample_rate_in_hz
+            
+            #Meh.
+            #self.current_pos = self.current_pos % self.sample_rate_in_hz
             
         return chunk
 
@@ -86,16 +96,20 @@ class multi_oscillator(data_provider):
     current_pos = None
     oscillators = None
 
+    #Save time by calculating this up front
+    tau = 2 * pi
+
     def __init__(self, hertzen, sample_rate_in_hz=None, volume = 1, chunksize=1024):
         self.hertzen = hertzen
 
         self.chunksize = chunksize
 
         self.volume = volume
-
-        self.current_pos = 0
-
+        
         self.oscillators = []
+
+        #Save time by declaring this a float at the start rather than casting it later
+        self.current_pos = 0.0
 
         #calculate an appropriate rate if we're not trying to force a particular sample rate
         if(not sample_rate_in_hz):
@@ -110,15 +124,17 @@ class multi_oscillator(data_provider):
             self.oscillators.append(oscillator(hz, sample_rate_in_hz = self.sample_rate_in_hz, volume = self.volume, chunksize = self.chunksize))
 
     def get_data(self):
+        #initialize the chunk array
         chunk = []
 
         #And sample the sine waves!
         for x in range(0, self.chunksize):
             value = 0
             for hertz in self.hertzen:
-                value += (self.volume * scipy.sin(2 * pi * hertz * (float(self.current_pos) / self.sample_rate_in_hz)))
+                #It would be great if this could be sped up even more
+                value += (self.volume * math.sin(self.tau * hertz * (self.current_pos / self.sample_rate_in_hz)))
 
-            chunk.append(self.volume * value)
+            chunk.append(value)
             self.current_pos = self.current_pos + 1
 
         return chunk
