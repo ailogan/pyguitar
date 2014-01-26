@@ -255,6 +255,8 @@ class mxl_container:
 
     #Get the notes
     def get_note_array(self, part=0):
+        #Need to reset this before we load a part
+        self.current_ms = 0
 
         notearray = []
 
