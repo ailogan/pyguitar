@@ -25,6 +25,7 @@ hertzen_lock = None
 
 class SpriteContainer:
     sprite = None
+    size = None
     pos = None
     note = None
 
@@ -34,6 +35,7 @@ class SpriteContainer:
         self.sprite = sprite
         self.pos = pos
         self.note = note
+        self.size = [self.sprite.get_width(), self.sprite.get_height()]
     
     #Moves the sprite some number of pixels from where it is
     def move(self, velocity):
@@ -62,7 +64,7 @@ def play_tones():
     with hertzen_lock:
         current_hertzen = copy.deepcopy(hertzen)
 
-    chunksize = 1
+    chunksize = 8
 
     osc = data_provider.multi_oscillator(current_hertzen, sample_rate_in_hz=sample_rate, volume = .1, chunksize=chunksize)
         
@@ -84,7 +86,7 @@ def play_tones():
 
 def positive_int(string):
     num = int(string)
-    if (num <= 0):
+    if (num < 0):
         raise argparse.ArgumentTypeMessage("need to provide a positive number!")
     
     return num
@@ -99,7 +101,11 @@ def main(argv=None):
 
     parser.add_argument("--fps", help="frames per second", default=30, type=positive_int)
 
-    parser.add_argument("--infile", help="path to a musicXML file")
+    parser.add_argument("--infile", help="path to a musicXML file", required=True)
+
+    parser.add_argument("--part", help="specify the parts that should be loaded from the musicXML file", type=positive_int, action='append', default=[0])
+
+    parser.add_argument("--scale", help="speed up or slow down the tempo", default=1)
 
     args = parser.parse_args()
 
@@ -111,14 +117,21 @@ def main(argv=None):
     
     notearray = []
 
-    if(args.infile):
-        print "Loading..."
-        music_xml = musicxml_parse_test.mxl_container(args.infile)
+    print "Loading..."
+    music_xml = musicxml_parse_test.mxl_container(args.infile)
+    
+    for part in args.part:
+        notes = music_xml.get_note_array(part)
+        print "part {0}: {1}".format(part, len(notes))
+        notearray.append(notes)
 
-        notearray = music_xml.get_note_array()
+    notearray.sort(key=lambda x:x[0])
 
     #Set up pygame
     pygame.init()
+
+    #Set the window title
+    pygame.display.set_caption(args.infile)
     
     #Make the special buffer that holds the output that's displayed on the screen
     screen = pygame.display.set_mode([windowWidth,windowHeight])
@@ -128,56 +141,79 @@ def main(argv=None):
 
     fontobj = pygame.font.Font(None, 50)
 
+    scale = 1 / float(args.scale)
+
     #How quickly the sprites will scroll
     ms_per_pixel = 5
 
     pixels_per_ms = 1.0 / ms_per_pixel
 
-    #What color they are
-    sprite_color = [200,100,0]
-
     #Subdivide the window so that each string has its own lane
     #TODO: should eventually get the number of strings from the musicXML file
     num_strings = 6
-    sprite_height = (windowHeight / num_strings)
+    num_parts = len(args.part)
+
+    lane_height = windowHeight / num_parts
+    sprite_height = (lane_height / num_strings)
 
     #Start near the right side of the screen
     x_offset = math.ceil(windowWidth * .3)
+    y_offset = 0
 
-    for note_data in notearray:
-        when = note_data[0]
-        note = note_data[1]
-        duration_in_ms = note_data[2]
+    num_part = 0
 
-        #Is this a rest?
-        if(note.step is None):
-            continue
+    for part in notearray:
+        y_offset = num_part * lane_height
 
-        #pixels = ms * (pixels / ms)
-        sprite_width = math.ceil(duration_in_ms * pixels_per_ms)
+        #What color they are
+        sprite_color = [(255 / num_parts) * num_part, 100, 0]
 
-        sprite = pygame.Surface([sprite_width, sprite_height])
-        sprite.fill(sprite_color)
+        print "loading part {}: size: {} start: {} end: {}".format(num_part, len(part), part[0][0], part[-1][0])
+
+        for note_data in part:
+            when = note_data[0]
+            note = note_data[1]
+            duration_in_ms = note_data[2]
+
+            #Is this a rest?
+            if(note.step is None):
+                continue
+
+            when *= scale
+            duration_in_ms *= scale
+
+            #pixels = ms * (pixels / ms)
+            sprite_width = math.ceil(duration_in_ms * pixels_per_ms)
+
+            sprite = pygame.Surface([sprite_width, sprite_height])
+            sprite.fill(sprite_color)
         
-        guitar_string = note.string
-        guitar_fret   = note.fret
+            #Draw lines on the left and the top of the sprite so we can tell where notes begin
+            pygame.draw.lines(sprite, [0,0,0], False, [(0, sprite_height), (0,0), (sprite_width, 0)], 1)
+        
+            guitar_string = note.string
+            guitar_fret   = note.fret
 
-        words = fontobj.render(str(guitar_fret), True, (200,200,200))
+            words = fontobj.render(str(guitar_fret), True, (200,200,200))
 
-        #Put the fret number onto the note sprite
-        sprite.blit(words,[0,0])
+            #Put the fret number onto the note sprite
+            sprite.blit(words,[0,0])
 
-        #Now we figure out where this is supposed to be.
+            #Now we figure out where this is supposed to be.
+            #TODO: Don't start scrolling the sprite until it's just about visible on the window.  I imagine this means figuring out how many ms wide the window is.
 
-        start_x_pos = math.ceil(when * pixels_per_ms) + x_offset
+            start_x_pos = (when * pixels_per_ms) + x_offset
 
-        #String 6 (low E) is on the bottom, string 1 (high E) is on the top.  (0,0) is the top left of the screen
+            #String 6 (low E) is on the bottom, string 1 (high E) is on the top.  (0,0) is the top left of the screen
 
-        start_y_pos = sprite_height * (guitar_string - 1)
+            start_y_pos = sprite_height * (guitar_string - 1) + y_offset
 
-        sprite_container = SpriteContainer(sprite, [start_x_pos, start_y_pos], note)
+            sprite_container = SpriteContainer(sprite, [start_x_pos, start_y_pos], note)
 
-        note_sprites.append(sprite_container)
+            note_sprites.append(sprite_container)
+
+
+        num_part += 1
 
     clk=pygame.time.Clock()
 
@@ -189,7 +225,7 @@ def main(argv=None):
 
     #samples / frame = ((samples / second) / 1000) * (ms / frame)
 
-    line_pos_x = windowWidth * .2
+    line_pos_x = windowWidth * .1
 
     #Initialize the array
     hertzen = []
@@ -218,15 +254,20 @@ def main(argv=None):
         current_hertzen = []
 
         screen.fill((100,100,100))
+
+        more_notes = False
         
         for note_sprite in note_sprites:
             xpos = note_sprite.pos[0]
-            xwidth = note_sprite.sprite.get_width()
+            xwidth = note_sprite.size[0]
+
+            if(not more_notes and xpos+xwidth >= 0):
+                more_notes = True
 
             #Don't bother drawing sprites that are off the screen
-            if((xpos+xwidth >= 0) and
-               (xpos <= windowWidth)):
-                screen.blit(note_sprite.sprite, note_sprite.pos)
+            if(xpos+xwidth >= 0):
+                if(xpos <= windowWidth):
+                    screen.blit(note_sprite.sprite, note_sprite.pos)
 
                 #Play notes that are crossing the line
                 if((line_pos_x >= xpos) and
@@ -235,17 +276,32 @@ def main(argv=None):
                     current_hertzen.extend([note_sprite.note.freq])
 
 
-            #Scroll sprite to the right
-            note_sprite.move([-pixels_per_frame, 0])
+                #Scroll sprite to the right, but don't bother if it's already off the screen to the right.
+                note_sprite.move([-pixels_per_frame, 0])
 
             #print "{0} {1} {2} {3}".format(xpos, ypos, dx_per_frame, dy_per_frame)
+
+
+        #We're done if everything scrolled off of the screen
+        if(not more_notes):
+            pygame.quit()
+            sys.exit()
 
         if(previous_hertzen != current_hertzen):
             with hertzen_lock:
                 hertzen = copy.deepcopy(current_hertzen)
 
-        #Line should go over the notes
-        pygame.draw.line(screen, [255,255,255], [line_pos_x, 0], [line_pos_x, windowHeight], 5)
+        #Draw lane markers
+        for lane in range(0, num_parts):
+            pygame.draw.line(screen, [0,0,0], [0, lane_height * lane], [windowWidth, lane_height * lane], 3)
+            
+            for string in range(0, num_strings):
+
+                lane_x_offset = sprite_height * .5 + (sprite_height * string) + (lane_height * lane)
+                pygame.draw.line(screen, [255,255,255], [0, lane_x_offset], [windowWidth, lane_x_offset], 1)
+
+        #Line for where the notes are played should go over the notes
+        pygame.draw.line(screen, [255,255,255], [line_pos_x, 0], [line_pos_x, windowHeight], 3)
 
         pygame.display.flip() #RENDER WINDOW
         clk.tick(fps) #limit the fps
