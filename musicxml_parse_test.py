@@ -37,7 +37,7 @@ class note:
             self.alter = int(alter)
 
         if(octave is not None):
-            self.octave = int(octave)
+            self.octave = int(octave) - 1
 
         if(string is not None):
             self.string = int(string)
@@ -104,9 +104,6 @@ class mxl_container:
     root = None
     parts = None
 
-    fret = None
-    string = None
-
     #Path to a musicxml file
     def __init__(self, xmlfile):
         self.tempo = 90 #The default according to the musicxml docs.
@@ -116,9 +113,6 @@ class mxl_container:
         self.root = tree.getroot()
 
         self.parts = []
-
-        self.fret = None
-        self.string = None
 
         #Try to stuff the XML file into a useful container.
 
