@@ -64,7 +64,7 @@ def play_tones():
     with hertzen_lock:
         current_hertzen = copy.deepcopy(hertzen)
 
-    chunksize = 8
+    chunksize = 128
 
     osc = data_provider.multi_oscillator(current_hertzen, sample_rate_in_hz=sample_rate, volume = .1, chunksize=chunksize)
         
@@ -75,7 +75,7 @@ def play_tones():
 
         #Only update the oscillator if the frequencies have changed.
         if(current_hertzen != previous_hertzen):
-            osc = data_provider.multi_oscillator(current_hertzen, sample_rate_in_hz=sample_rate, volume = .1, chunksize=chunksize)
+            osc.update(current_hertzen)
 
         previous_hertzen = current_hertzen
 
@@ -103,7 +103,7 @@ def main(argv=None):
 
     parser.add_argument("--infile", help="path to a musicXML file", required=True)
 
-    parser.add_argument("--part", help="specify the parts that should be loaded from the musicXML file", type=positive_int, action='append', default=[0])
+    parser.add_argument("--parts", help="comma-separated list of parts that should be loaded from the musicXML file", default=0)
 
     parser.add_argument("--scale", help="speed up or slow down the tempo", default=1)
 
@@ -119,9 +119,11 @@ def main(argv=None):
 
     print "Loading..."
     music_xml = musicxml_parse_test.mxl_container(args.infile)
+
+    partids = args.parts.split(',')
     
-    for part in args.part:
-        notes = music_xml.get_note_array(part)
+    for part in partids:
+        notes = music_xml.get_note_array(int(part))
         print "part {0}: {1}".format(part, len(notes))
         notearray.append(notes)
 
@@ -151,7 +153,7 @@ def main(argv=None):
     #Subdivide the window so that each string has its own lane
     #TODO: should eventually get the number of strings from the musicXML file
     num_strings = 6
-    num_parts = len(args.part)
+    num_parts = len(partids)
 
     lane_height = windowHeight / num_parts
     sprite_height = (lane_height / num_strings)
