@@ -68,7 +68,7 @@ class oscillator(data_provider):
 
         #Calculate the sample rate if it wasn't passed in as an argument
         if(not sample_rate_in_hz):
-            self.sample_rate_in_hz = int(np.ceil(hertz * 2 + (.001 * hertz))) #You know what?  Let's try out the Nyquist-Shannon sampling theorem.  (In order to be uniquly identifiable the frequency has to be less than .5 the sampling frequency)
+            self.sample_rate_in_hz = int(math.ceil(hertz * 2 + (.001 * hertz))) #You know what?  Let's try out the Nyquist-Shannon sampling theorem.  (In order to be uniquly identifiable the frequency has to be less than .5 the sampling frequency)
 
         else:
             self.sample_rate_in_hz = sample_rate_in_hz
@@ -114,7 +114,7 @@ class multi_oscillator(data_provider):
         #calculate an appropriate rate if we're not trying to force a particular sample rate
         if(not sample_rate_in_hz):
             max_freq = max(hertzen)
-            self.sample_rate_in_hz = int(np.ceil(max_freq * 2 + (.001 * max_freq))) #You know what?  Let's try out the Nyquist-Shannon sampling theorem.  (In order to be uniquly identifiable the frequency has to be less than .5 the sampling frequency)
+            self.sample_rate_in_hz = int(math.ceil(max_freq * 2 + (.001 * max_freq))) #You know what?  Let's try out the Nyquist-Shannon sampling theorem.  (In order to be uniquly identifiable the frequency has to be less than .5 the sampling frequency)
 
         else:
             self.sample_rate_in_hz = sample_rate_in_hz
@@ -122,6 +122,10 @@ class multi_oscillator(data_provider):
         for hz in hertzen:
             #These all have to be the same sample rate and chunksize because we're going to be merging them together later
             self.oscillators.append(oscillator(hz, sample_rate_in_hz = self.sample_rate_in_hz, volume = self.volume, chunksize = self.chunksize))
+
+    #Maybe this will keep it from popping so much when notes change?
+    def update(self, hertzen):
+        self.hertzen = hertzen
 
     def get_data(self):
         #initialize the chunk array
