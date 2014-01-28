@@ -247,6 +247,10 @@ def main(argv=None):
     previous_hertzen = None
     current_hertzen = []
 
+    #Tracks where we are in the song so that we can avoid moving sprites until we need them.
+    cursor_pos = windowWidth
+    frames = 1
+
     while 1:
         for event in pygame.event.get(): #check if we need to exit
                 if event.type == pygame.QUIT:pygame.quit();sys.exit()
@@ -266,20 +270,26 @@ def main(argv=None):
             if(not more_notes and xpos+xwidth >= 0):
                 more_notes = True
 
-            #Don't bother drawing sprites that are off the screen
+            #Don't bother drawing sprites that are off the screen to the left
             if(xpos+xwidth >= 0):
-                if(xpos <= windowWidth):
-                    screen.blit(note_sprite.sprite, note_sprite.pos)
-
                 #Play notes that are crossing the line
                 if((line_pos_x >= xpos) and
                    (line_pos_x <= xpos + xwidth)):
 
                     current_hertzen.extend([note_sprite.note.freq])
 
+                #Don't bother moving or drawing sprites that are off either side of the screen
+                if(xpos <= windowWidth):
+                    screen.blit(note_sprite.sprite, note_sprite.pos)
+                    note_sprite.move([-pixels_per_frame, 0])
 
-                #Scroll sprite to the right, but don't bother if it's already off the screen to the right.
-                note_sprite.move([-pixels_per_frame, 0])
+                #Jump the sprites that are about to be drawn to the right position.  It's all offscreen anyway so we're wasting moves by incrementing them smoothly.
+                else:
+                    if(xpos <= cursor_pos):
+                        note_sprite.move([-(pixels_per_frame * frames), 0])
+
+        cursor_pos += pixels_per_frame
+        frames += 1
 
             #print "{0} {1} {2} {3}".format(xpos, ypos, dx_per_frame, dy_per_frame)
 
