@@ -1,4 +1,10 @@
-#!/usr/bin/python
+#!/opt/local/bin/python2.7
+
+# pyguitar.py
+#
+# Andrew Logan - 1/12/14
+#
+# Program written as a guitar practice aid.  Should eventually pull in a midi file and see if the guitar has hit essentially the right note at essentially the right time.  Pulling in pygame in order to show the notes as they're arriving.
 
 import data_provider
 import freq_analyze
@@ -14,6 +20,8 @@ import copy
 
 import numpy as np
 
+
+
 #Shared between threads
 data = None
 data_lock = None
@@ -24,15 +32,19 @@ def crank_fft(fa):
 
     clk = pygame.time.Clock()
 
-    #TODO: limit this to a certain update rate somehow?
     while True:
         #Get some data out of the provider
         num_notes = 1
         analysis_results = fa.iterate(num_notes)
 
-        freq = analysis_results[0][0]
-        intensity = analysis_results[0][1]
-        note = analysis_results[0][2]
+        freq = 0.0
+        intensity = 0.0
+        note = None
+
+        if(len(analysis_results) != 0):
+            freq = analysis_results[0][0]
+            intensity = analysis_results[0][1]
+            note = analysis_results[0][2][2]
     
         intensity_delta = (intensity - previous_intensity)
         previous_intensity = intensity
@@ -55,7 +67,7 @@ def crank_fft(fa):
             data=np.roll(data,-1,0)
             data[-1]=fft_y[::-1]
 
-        #limit the rate we update at to save some CPU (40FPS should be plenty)
+        #limit the rate we update at to save some CPU (20Hz should be fine)
         clk.tick(20)
 
 def positive_int(string):
