@@ -9,6 +9,7 @@ import data_provider
 import numpy as np
 import scipy
 import scipy.fftpack
+import scipy.signal
 
 class freq_analyze:
     """a class that takes in input from a data_provider class, runs it through a Fourier transform and produces an array of tuples of frequency, intensity and music note."""
@@ -20,6 +21,8 @@ class freq_analyze:
     sample_rate = None
 
     fft_y = None
+
+    sqrt_2 = np.sqrt(2)
 
     def __init__(self, data_provider):
         self.data_provider = data_provider
@@ -59,10 +62,12 @@ class freq_analyze:
         
         #A is 1, so shift everything down by 1 to make it 0.
         note_idx = ((keynum - 1) % 12) 
+
+        step = notes[note_idx]
         
-        note_name = notes[note_idx] + str(octave)
+        note_name = step + str(octave)
         
-        return note_name
+        return [step, octave, note_name]
 
     #Useful for graphing the output in a spectrogram window
     def get_raw_fft_output(self):
@@ -93,12 +98,22 @@ class freq_analyze:
             self.fft_input_buffer = self.fft_input_buffer[-self.fft_input_buffer_size:]
 
         #Do the Fourier transform
+   
+        # http://matteolandi.blogspot.com/2010/08/notes-about-fft-normalization-part-ii.html
+        # gives a good explanation of what the FFT function returns,
+        # and I'm using his function to normalize the data here.
+
         self.fft_y = scipy.fftpack.fft(self.fft_input_buffer)
-        real_fft_y=abs(self.fft_y)
+
+        normfactor = self.sqrt_2 / len(self.fft_y)
+
+        real_fft_y= normfactor * (self.fft_y)  #Normalize the data
 
         # Cut the ffty array in half to avoid having to process duplicate values.
         # (the second half of the array contains the negative solutions, which don't interest me)
-        positive_fft_y = real_fft_y[0:len(real_fft_y)/2]
+        positive_fft_y = real_fft_y[:len(real_fft_y)/2]
+
+        positive_fft_y = 20 * np.log10(abs(positive_fft_y) / 1)
 
         #But we need to convert the original array to a set of frequencies, otherwise there's a chunk of energy that's missing from the frequency analysis.  The docs say:
 
@@ -106,19 +121,34 @@ class freq_analyze:
         freqs = np.fft.fftfreq(len(real_fft_y)) 
 
         #Order the indexes of the positive FFT results by intensity.
-        sorted_positive_fft_y = np.argsort(positive_fft_y**2)
+        sorted_positive_fft_y = np.argsort(positive_fft_y)
 
         result = []
+        cutoff = 40.0
 
         #And assemble the result!
-        for x in sorted_positive_fft_y[-1:-(num_frequencies+1):-1]:
-            intensity = float(abs(positive_fft_y[x])) #Might one day be interesting to figure out the units here.  Or at least the range of possible values.
+
+        #Start by finding where the loudest signals are
+        maxima_indices = scipy.signal.argrelmax(positive_fft_y, order=10)[0]
+
+        for x in maxima_indices:
+            intensity = positive_fft_y[x]
+
+            if(intensity < cutoff):
+                continue
+
             freq = freqs[x]
             freq_in_hertz = abs(freq*self.sample_rate)
             key = self.freq_to_key(freq_in_hertz)
 
+            #print "frequency: {0:10.2f} Hz (intensity: {1:12.3f}) note: {2:s}".format(float(freq_in_hertz), intensity, key)
+
             result.append([freq_in_hertz, intensity, key])
 
-            # print "frequency: {0:10.2f} Hz (intensity: {1:12.3f}) note: {2:s}".format(float(freq_in_hertz), intensity, key)
-            
-        return result
+        #We want the root note to come first (sort by frequency ascending)
+        #result.sort(lambda x,y: cmp(x[0], y[0]))
+
+        #print result
+        
+        #And return the appropriate number of elements
+        return result[:num_frequencies]
