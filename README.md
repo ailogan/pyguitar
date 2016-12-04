@@ -1,6 +1,6 @@
 # pyguitar
 
-A python-based synthesizer that reads MusicXML files.
+A python-based synthesizer that reads MusicXML files and does a bunch of math to make sound.
 
 ## Installation
 
