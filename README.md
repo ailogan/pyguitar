@@ -4,7 +4,7 @@ A python-based synthesizer that reads MusicXML files and does a bunch of math to
 
 ## Installation
 
-Requires pygame
+Requires pygame, numpy and scipy.
 
 ## Usage
 
